@@ -23,4 +23,5 @@ export default defineConfig({
 
     socialLinks: [{ icon: "github", link: "https://github.com/gtnao/viblog" }],
   },
+  base: "/viblog/",
 });
