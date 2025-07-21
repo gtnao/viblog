@@ -1,14 +1,18 @@
 import { withMermaid } from "vitepress-plugin-mermaid";
 import fs from "fs";
 import path from "path";
+import footnote from "markdown-it-footnote";
 
 // https://vitepress.dev/reference/site-config
 export default withMermaid({
   title: "Viblog",
-  description: "A VitePress Site",
+  description: "AI-Powered Technical Documentation - Let AI craft in-depth technical articles",
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
-    nav: [{ text: "Home", link: "/" }],
+    nav: [
+      { text: "Home", link: "/" },
+      { text: "Articles", link: "/articles/database/snapshot_isolation" }
+    ],
 
     sidebar: getArticlesSidebar(),
 
@@ -19,6 +23,9 @@ export default withMermaid({
   mermaidPlugin: { class: "mermaid my-class" },
   markdown: {
     math: true,
+    config: (md) => {
+      md.use(footnote);
+    },
   },
 });
 
