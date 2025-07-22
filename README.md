@@ -1,12 +1,15 @@
-# viblog
+# Viblog - AI-Powered Technical Documentation
 
 [https://gtnao.github.io/viblog/](https://gtnao.github.io/viblog/)
 
-A blog site featuring technical articles.
+Let AI craft in-depth technical articles while you focus on what matters. From the creators of VibeCoding - now bringing the same AI-powered approach to technical writing.
 
-## Overview
+## Features
 
-Provides in-depth technical articles on computer science and implementation techniques. Each article explains technology from both theoretical and practical perspectives, aiming to help readers acquire practical knowledge.
+- 🤖 **AI-Generated Content** - High-quality technical articles written by AI, following strict guidelines for depth and accuracy
+- 📖 **Deep Technical Insights** - Comprehensive coverage from theoretical foundations to implementation details
+- 🎓 **Academic Rigor** - Properly cited references to papers and specifications with mathematical precision
+- ⚡ **Just Like VibeCoding** - From the creators of VibeCoding - now bringing the same AI-powered approach to technical writing
 
 ## Categories
 
@@ -36,3 +39,7 @@ npm run dev
 ```bash
 npm run build
 ```
+
+## Contributing
+
+This project uses AI to generate high-quality technical documentation. Each article is carefully crafted to provide both theoretical understanding and practical implementation details.
