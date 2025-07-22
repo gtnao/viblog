@@ -179,17 +179,19 @@ D-Bus（Desktop Bus）は、Linuxシステムにおけるプロセス間通信�
 
 SystemdのD-Bus APIは、org.freedesktop.systemd1という名前空間で提供される。主要なインターフェースには、Managerインターフェース（システム全体の管理）、Unitインターフェース（個別ユニットの管理）、Jobインターフェース（ジョブの管理）などがある。これらのインターフェースを通じて、サービスの起動・停止、状態の取得、プロパティの変更などが可能である。
 
+以下の図は、様々なアプリケーションがD-Bus経由でSystemdと通信する様子を示している：
+
 ```mermaid
-graph LR
-    A[アプリケーション] -->|D-Bus| B[systemd]
-    C[systemctl] -->|D-Bus| B
-    D[GNOME] -->|D-Bus| B
-    E[PolicyKit] -->|D-Bus| B
+flowchart LR
+    App[アプリケーション] ==> Systemd[systemd]
+    Ctl[systemctl] ==> Systemd
+    Gnome[GNOME] ==> Systemd
+    Policy[PolicyKit] ==> Systemd
     
-    B --> F[Unit管理]
-    B --> G[ログイン管理]
-    B --> H[電源管理]
-    B --> I[ホスト名管理]
+    Systemd --- Unit[Unit管理]
+    Systemd --- Login[ログイン管理]
+    Systemd --- Power[電源管理]
+    Systemd --- Host[ホスト名管理]
 ```
 
 D-Bus統合の利点は、言語非依存のAPIを提供することである。C、Python、JavaScript、Rustなど、様々なプログラミング言語からD-Busライブラリを通じてSystemdと通信できる。また、D-Busのセキュリティ機能により、適切な権限管理が可能である。PolicyKitと連携することで、細かい権限制御も実現できる。
@@ -295,7 +297,7 @@ systemd-resolvedは、DNS解決を担当するデーモンで、DNS over TLS、D
 
 Systemdを使用したシステムの運用において、トラブルシューティングは重要なスキルである。一般的な問題として、サービスの起動失敗、依存関係の問題、リソース制限による問題などがある。
 
-サービスの起動失敗を調査する際は、まずsystemctl status <service>で基本的な状態を確認する。より詳細な情報が必要な場合は、journalctl -xe -u <service>でサービスのログを確認する。依存関係の問題は、systemctl list-dependencies <service>で依存関係ツリーを表示して調査する。
+サービスの起動失敗を調査する際は、まずsystemctl status SERVICE_NAMEで基本的な状態を確認する。より詳細な情報が必要な場合は、journalctl -xe -u SERVICE_NAMEでサービスのログを確認する。依存関係の問題は、systemctl list-dependencies SERVICE_NAMEで依存関係ツリーを表示して調査する。
 
 ```bash
 # サービスの詳細な状態確認
@@ -314,7 +316,7 @@ systemctl show-environment
 systemd-cgtop
 ```
 
-リソース制限に関する問題は、systemd-cgtopでリアルタイムのリソース使用状況を監視できる。また、各サービスのリソース制限は、systemctl show <service> -p MemoryLimit -p CPUQuotaなどで確認できる。
+リソース制限に関する問題は、systemd-cgtopでリアルタイムのリソース使用状況を監視できる。また、各サービスのリソース制限は、systemctl show SERVICE_NAME -p MemoryLimit -p CPUQuotaなどで確認できる。
 
 ## 将来の展望と課題
 
