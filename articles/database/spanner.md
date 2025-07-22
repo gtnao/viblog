@@ -391,16 +391,16 @@ Spannerは、負荷に応じて自動的にタブレットを分割・結合す�
 ```mermaid
 graph TD
     subgraph "分割前"
-        T1[Tablet: [A-Z]<br/>Size: 1.5GB<br/>QPS: 10000]
+        T1["Tablet: A-Z | Size: 1.5GB | QPS: 10000"]
     end
     
     subgraph "分割後"
-        T2[Tablet: [A-M]<br/>Size: 0.8GB<br/>QPS: 6000]
-        T3[Tablet: [N-Z]<br/>Size: 0.7GB<br/>QPS: 4000]
+        T2["Tablet: A-M | Size: 0.8GB | QPS: 6000"]
+        T3["Tablet: N-Z | Size: 0.7GB | QPS: 4000"]
     end
     
-    T1 -->|Split at 'M'| T2
-    T1 -->|Split at 'M'| T3
+    T1 -->|"Split at M"| T2
+    T1 -->|"Split at M"| T3
 ```
 
 ### クエリ最適化とコスト推定

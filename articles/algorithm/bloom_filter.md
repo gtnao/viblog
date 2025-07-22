@@ -14,9 +14,9 @@ Bloom Filterの動作原理を理解するには、その数学的基礎を把�
 graph TD
     subgraph "Bloom Filter Operations"
         A[Element x] --> B[Hash Functions]
-        B --> C[h₁(x) = 3]
-        B --> D[h₂(x) = 7]
-        B --> E[h₃(x) = 11]
+        B --> C["h1(x) = 3"]
+        B --> D["h2(x) = 7"]
+        B --> E["h3(x) = 11"]
         
         C --> F[Bit Array]
         D --> F
@@ -24,7 +24,7 @@ graph TD
         
         F --> G[0 0 0 1 0 0 0 1 0 0 0 1 0 0 0 0]
         
-        H[Query y] --> I[Check bits at h₁(y), h₂(y), h₃(y)]
+        H[Query y] --> I["Check bits at h1(y), h2(y), h3(y)"]
         I --> J{All bits = 1?}
         J -->|Yes| K[Possibly in set]
         J -->|No| L[Definitely not in set]
@@ -72,11 +72,11 @@ flowchart LR
     subgraph "Double Hashing Implementation"
         A[Input x] --> B[MurmurHash3_x64_128]
         B --> C[128-bit output]
-        C --> D[h₁ = lower 64 bits]
-        C --> E[h₂ = upper 64 bits]
-        D --> F[g₀ = h₁ mod m]
-        D --> G[g₁ = (h₁ + h₂) mod m]
-        D --> H[g₂ = (h₁ + 2h₂) mod m]
+        C --> D[h1 = lower 64 bits]
+        C --> E[h2 = upper 64 bits]
+        D --> F["g0 = h1 mod m"]
+        D --> G["g1 = (h1 + h2) mod m"]
+        D --> H["g2 = (h1 + 2h2) mod m"]
         E --> G
         E --> H
         F --> I[Set bit positions]
@@ -238,10 +238,10 @@ Counting Bloom Filter[^5]は、各ビットを小さなカウンタ（通常3-4�
 ```mermaid
 graph TD
     subgraph "Counting Bloom Filter Structure"
-        A[Counter Array: 0 2 0 1 3 0 0 1 0 2]
-        B[Insert x: increment counters at h₁(x), h₂(x), h₃(x)]
-        C[Delete x: decrement counters at h₁(x), h₂(x), h₃(x)]
-        D[Query x: check if all counters > 0]
+        A["Counter Array: 0 2 0 1 3 0 0 1 0 2"]
+        B["Insert x: increment counters at h1(x), h2(x), h3(x)"]
+        C["Delete x: decrement counters at h1(x), h2(x), h3(x)"]
+        D["Query x: check if all counters > 0"]
     end
 ```
 
