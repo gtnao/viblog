@@ -187,6 +187,301 @@ def query_sum(S, x1, y1, x2, y2):
 
 圏論的には、累積和操作は関手（Functor）として捉えることができ、配列のカテゴリから別の配列のカテゴリへの写像として形式化される。この視点は、関数型プログラミングにおける累積和の実装や、より抽象的なデータ構造への拡張を考える際に有用である。
 
+## 具体的な実装例
+
+実際の開発において、二次元累積和の実装は言語固有の特性を考慮する必要がある。ここでは、主要なプログラミング言語における実装例を示し、それぞれの言語における最適化のポイントを解説する。
+
+### C++による実装
+
+C++では、テンプレートを活用することで、任意の数値型に対応した汎用的な実装が可能である。また、コンパイル時の最適化を活用できるため、高性能な実装を実現できる。
+
+```cpp
+template<typename T>
+class CumulativeSum2D {
+private:
+    vector<vector<T>> sum;
+    int rows, cols;
+    
+public:
+    CumulativeSum2D(const vector<vector<T>>& matrix) {
+        rows = matrix.size();
+        cols = matrix[0].size();
+        sum.assign(rows + 1, vector<T>(cols + 1, 0));
+        
+        for (int i = 1; i <= rows; i++) {
+            for (int j = 1; j <= cols; j++) {
+                sum[i][j] = matrix[i-1][j-1] + sum[i-1][j] + sum[i][j-1] - sum[i-1][j-1];
+            }
+        }
+    }
+    
+    T query(int x1, int y1, int x2, int y2) {
+        return sum[x2+1][y2+1] - sum[x1][y2+1] - sum[x2+1][y1] + sum[x1][y1];
+    }
+};
+```
+
+### Javaによる実装
+
+Javaでは、オブジェクト指向の原則に従い、カプセル化された実装を提供する。例外処理を含めることで、堅牢性を高めることができる。
+
+```java
+public class CumulativeSum2D {
+    private long[][] sum;
+    private int rows, cols;
+    
+    public CumulativeSum2D(int[][] matrix) {
+        if (matrix == null || matrix.length == 0 || matrix[0].length == 0) {
+            throw new IllegalArgumentException("Invalid matrix");
+        }
+        
+        rows = matrix.length;
+        cols = matrix[0].length;
+        sum = new long[rows + 1][cols + 1];
+        
+        for (int i = 1; i <= rows; i++) {
+            for (int j = 1; j <= cols; j++) {
+                sum[i][j] = matrix[i-1][j-1] + sum[i-1][j] + sum[i][j-1] - sum[i-1][j-1];
+            }
+        }
+    }
+    
+    public long query(int x1, int y1, int x2, int y2) {
+        if (x1 < 0 || y1 < 0 || x2 >= rows || y2 >= cols || x1 > x2 || y1 > y2) {
+            throw new IllegalArgumentException("Invalid query range");
+        }
+        return sum[x2+1][y2+1] - sum[x1][y2+1] - sum[x2+1][y1] + sum[x1][y1];
+    }
+}
+```
+
+### NumPyを使用したPython実装
+
+NumPyを使用することで、ベクトル化された高速な実装が可能となる。内部的にC言語で実装されているため、純粋なPythonよりも大幅に高速である。
+
+```python
+import numpy as np
+
+class CumulativeSum2D:
+    def __init__(self, matrix):
+        self.rows, self.cols = matrix.shape
+        self.sum = np.zeros((self.rows + 1, self.cols + 1), dtype=np.int64)
+        
+        # Vectorized cumulative sum computation
+        self.sum[1:, 1:] = np.cumsum(np.cumsum(matrix, axis=0), axis=1)
+    
+    def query(self, x1, y1, x2, y2):
+        return (self.sum[x2+1, y2+1] - self.sum[x1, y2+1] - 
+                self.sum[x2+1, y1] + self.sum[x1, y1])
+```
+
+## スペース最適化手法
+
+メモリ使用量が制約となる環境では、二次元累積和のスペース効率を改善する手法が重要となる。基本的な実装では原配列と同じサイズの追加メモリが必要だが、いくつかの最適化により、この要求を削減できる。
+
+### In-place累積和
+
+原配列を破壊してもよい場合、追加のメモリを使用せずに累積和を計算できる。この手法は、メモリが極めて制限された組込みシステムなどで有用である。
+
+```cpp
+void buildCumulativeSumInPlace(vector<vector<int>>& matrix) {
+    int m = matrix.size(), n = matrix[0].size();
+    
+    // First row cumulative sum
+    for (int j = 1; j < n; j++) {
+        matrix[0][j] += matrix[0][j-1];
+    }
+    
+    // First column cumulative sum
+    for (int i = 1; i < m; i++) {
+        matrix[i][0] += matrix[i-1][0];
+    }
+    
+    // Rest of the matrix
+    for (int i = 1; i < m; i++) {
+        for (int j = 1; j < n; j++) {
+            matrix[i][j] += matrix[i-1][j] + matrix[i][j-1] - matrix[i-1][j-1];
+        }
+    }
+}
+```
+
+### 圧縮累積和
+
+データの特性を活用した圧縮手法も存在する。例えば、スパース行列（要素の大部分が0）の場合、非零要素のみを保持する圧縮形式を採用できる。また、値の範囲が限定されている場合は、ビット圧縮技術を適用できる。
+
+## 実践的な問題例
+
+二次元累積和の威力を実感するために、具体的な問題を通じてその応用を見ていく。
+
+### 問題1: 最大部分矩形和
+
+$m \times n$の整数配列が与えられたとき、要素の総和が最大となる矩形領域を見つける問題である。この問題は、一次元の最大部分配列和問題（Kadane's algorithm）と二次元累積和を組み合わせることで、$O(m^2n)$時間で解決できる。
+
+```python
+def maxRectangleSum(matrix):
+    m, n = len(matrix), len(matrix[0])
+    cumsum = CumulativeSum2D(matrix)
+    max_sum = float('-inf')
+    
+    # Fix top and bottom rows
+    for top in range(m):
+        for bottom in range(top, m):
+            # Convert to 1D problem using cumulative sum
+            current_sum = 0
+            for right in range(n):
+                # Sum of column from top to bottom at position right
+                col_sum = cumsum.query(top, right, bottom, right)
+                current_sum = max(col_sum, current_sum + col_sum)
+                max_sum = max(max_sum, current_sum)
+    
+    return max_sum
+```
+
+### 問題2: 画像の移動平均フィルタ
+
+画像処理において、各ピクセルを周囲のピクセルの平均値で置き換える移動平均フィルタは、ノイズ除去に使用される。二次元累積和を用いることで、フィルタサイズに関わらず各ピクセルの計算を$O(1)$で実行できる。
+
+```cpp
+void applyAverageFilter(vector<vector<int>>& image, int filterSize) {
+    int m = image.size(), n = image[0].size();
+    CumulativeSum2D cumsum(image);
+    vector<vector<int>> result(m, vector<int>(n));
+    
+    int half = filterSize / 2;
+    
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            int x1 = max(0, i - half);
+            int y1 = max(0, j - half);
+            int x2 = min(m - 1, i + half);
+            int y2 = min(n - 1, j + half);
+            
+            int area = (x2 - x1 + 1) * (y2 - y1 + 1);
+            result[i][j] = cumsum.query(x1, y1, x2, y2) / area;
+        }
+    }
+    
+    image = result;
+}
+```
+
+## 並列化実装の詳細
+
+大規模データに対する二次元累積和の構築を高速化するため、並列アルゴリズムの実装が重要となる。特にGPUを活用した実装では、数千のスレッドを同時に動作させることで、劇的な性能向上を実現できる。
+
+### Work-efficient並列プレフィックスサム
+
+Blellochのアルゴリズム⁷を二次元に拡張することで、work-efficientな並列実装が可能となる。このアルゴリズムは、アップスイープとダウンスイープの2フェーズから構成される。
+
+```cuda
+__global__ void parallelPrefixSum2D(float* data, int rows, int cols) {
+    extern __shared__ float temp[];
+    int tid = threadIdx.x;
+    int row = blockIdx.y;
+    int col = blockIdx.x * blockDim.x + tid;
+    
+    if (col < cols) {
+        // Load data to shared memory
+        temp[tid] = data[row * cols + col];
+        __syncthreads();
+        
+        // Up-sweep phase
+        for (int stride = 1; stride < blockDim.x; stride *= 2) {
+            int index = (tid + 1) * stride * 2 - 1;
+            if (index < blockDim.x) {
+                temp[index] += temp[index - stride];
+            }
+            __syncthreads();
+        }
+        
+        // Down-sweep phase
+        if (tid == blockDim.x - 1) temp[tid] = 0;
+        __syncthreads();
+        
+        for (int stride = blockDim.x / 2; stride > 0; stride /= 2) {
+            int index = (tid + 1) * stride * 2 - 1;
+            if (index < blockDim.x) {
+                float t = temp[index - stride];
+                temp[index - stride] = temp[index];
+                temp[index] += t;
+            }
+            __syncthreads();
+        }
+        
+        // Write result back
+        if (col < cols) {
+            data[row * cols + col] = temp[tid];
+        }
+    }
+}
+```
+
+### タスク並列による実装
+
+マルチコアCPUでは、タスク並列を活用した実装が効果的である。OpenMPを使用することで、簡潔に並列化を実現できる。
+
+```cpp
+void parallelBuildCumulativeSum(vector<vector<double>>& matrix) {
+    int m = matrix.size(), n = matrix[0].size();
+    
+    // Parallel row-wise prefix sum
+    #pragma omp parallel for
+    for (int i = 0; i < m; i++) {
+        for (int j = 1; j < n; j++) {
+            matrix[i][j] += matrix[i][j-1];
+        }
+    }
+    
+    // Column-wise accumulation (inherently sequential)
+    for (int i = 1; i < m; i++) {
+        #pragma omp parallel for
+        for (int j = 0; j < n; j++) {
+            matrix[i][j] += matrix[i-1][j];
+        }
+    }
+}
+```
+
+## メモリ階層を考慮した最適化
+
+現代のコンピュータアーキテクチャでは、メモリ階層（キャッシュ、主記憶、外部記憶）の特性を考慮した最適化が性能に大きく影響する。
+
+### キャッシュブロッキング
+
+大規模な配列に対しては、キャッシュサイズを考慮したブロック処理が有効である。配列をキャッシュに収まるサイズのブロックに分割し、各ブロック内で処理を完結させることで、キャッシュミスを削減できる。
+
+```cpp
+void cacheOptimizedCumulativeSum(vector<vector<int>>& matrix, int blockSize = 64) {
+    int m = matrix.size(), n = matrix[0].size();
+    
+    // Process in blocks
+    for (int bi = 0; bi < m; bi += blockSize) {
+        for (int bj = 0; bj < n; bj += blockSize) {
+            int blockEndI = min(bi + blockSize, m);
+            int blockEndJ = min(bj + blockSize, n);
+            
+            // Process block
+            for (int i = bi; i < blockEndI; i++) {
+                for (int j = bj; j < blockEndJ; j++) {
+                    if (i > 0 && j > 0) {
+                        matrix[i][j] += matrix[i-1][j] + matrix[i][j-1] - matrix[i-1][j-1];
+                    } else if (i > 0) {
+                        matrix[i][j] += matrix[i-1][j];
+                    } else if (j > 0) {
+                        matrix[i][j] += matrix[i][j-1];
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+### プリフェッチングの活用
+
+現代のプロセッサは、ハードウェアプリフェッチングをサポートしているが、明示的なプリフェッチ命令を使用することで、さらなる性能向上が可能である。特に、予測可能なアクセスパターンを持つ累積和計算では効果的である。
+
 ---
 
 ¹ 包除原理（Inclusion-Exclusion Principle）: 有限集合の和集合の要素数を、各集合とその交わりの要素数から計算する組合せ論の基本原理。  
