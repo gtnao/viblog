@@ -202,17 +202,426 @@ vector<int> z_algorithm(const string& s) {
 
 この実装では、条件分岐を最小限に抑え、キャッシュ効率を考慮した構造となっている。実際の競技プログラミングでは、このような最適化が実行時間の差となって現れることがある。
 
+## 具体的な問題例と実装パターン
+
+Z-algorithmを活用する典型的な問題パターンをいくつか紹介する。これらの問題は、競技プログラミングで頻出するものであり、Z-algorithmの威力を実感できる好例である。
+
+### 1. 最長回文接頭辞の検出
+
+文字列Sの接頭辞のうち、回文となる最長のものを見つける問題を考える。この問題は、S + "#" + reverse(S)という文字列に対してZ-algorithmを適用することで解決できる。
+
+```python
+def longest_palindromic_prefix(s):
+    n = len(s)
+    combined = s + "#" + s[::-1]
+    z = z_algorithm(combined)
+    
+    max_len = 0
+    for i in range(n + 1, 2 * n + 1):
+        # Check if the suffix starting at i matches the prefix
+        if z[i] == 2 * n + 1 - i and z[i] <= n:
+            max_len = max(max_len, z[i])
+    
+    return s[:max_len]
+```
+
+この手法の巧妙な点は、文字列の反転と特殊文字を用いることで、回文性の判定を接頭辞マッチングの問題に帰着させていることである。
+
+### 2. 文字列の最小周期
+
+文字列Sの最小周期を求める問題は、Z-algorithmの典型的な応用例である。最小周期pは、Sがある長さpの文字列の繰り返しで表現できる最小のpである。
+
+```python
+def find_minimum_period(s):
+    n = len(s)
+    z = z_algorithm(s)
+    
+    for i in range(1, n):
+        if i + z[i] == n and n % i == 0:
+            return i
+    return n  # The string itself is the minimum period
+```
+
+この実装では、位置iから始まる接尾辞が文字列全体の接頭辞と一致し、かつnがiで割り切れる場合、iが周期となることを利用している。
+
+### 3. 部分文字列の出現回数カウント
+
+パターンPがテキストT内に何回出現するかを数える問題も、Z-algorithmで効率的に解決できる。オーバーラップする出現も正確にカウントする。
+
+```python
+def count_pattern_occurrences(text, pattern):
+    combined = pattern + "$" + text
+    z = z_algorithm(combined)
+    
+    count = 0
+    pattern_len = len(pattern)
+    
+    for i in range(pattern_len + 1, len(combined)):
+        if z[i] == pattern_len:
+            count += 1
+    
+    return count
+```
+
+## 高度な実装テクニック
+
+競技プログラミングにおいて、実装の詳細が実行時間に大きく影響することがある。以下に、Z-algorithmの高速化テクニックをいくつか紹介する。
+
+### メモリアクセスパターンの最適化
+
+現代のCPUアーキテクチャでは、キャッシュ効率が性能に大きく影響する。Z-algorithmの実装において、メモリアクセスパターンを最適化することで、実行時間を短縮できる。
+
+```cpp
+// キャッシュ効率を考慮したC++実装
+vector<int> z_algorithm_optimized(const string& s) {
+    int n = s.length();
+    vector<int> z(n);
+    int l = 0, r = 0;
+    
+    // プリフェッチを活用
+    for (int i = 1; i < n; i++) {
+        // 次の反復で使用するデータをプリフェッチ
+        __builtin_prefetch(&s[i + 1], 0, 1);
+        
+        if (i <= r) {
+            z[i] = min(r - i + 1, z[i - l]);
+        }
+        
+        // インライン展開とループアンローリング
+        while (i + z[i] < n) {
+            if (s[z[i]] != s[i + z[i]]) break;
+            z[i]++;
+            
+            // 4文字ずつ比較する最適化
+            if (i + z[i] + 3 < n) {
+                if (memcmp(&s[z[i]], &s[i + z[i]], 4) == 0) {
+                    z[i] += 4;
+                } else {
+                    break;
+                }
+            }
+        }
+        
+        if (i + z[i] - 1 > r) {
+            l = i;
+            r = i + z[i] - 1;
+        }
+    }
+    return z;
+}
+```
+
+### ビット演算を用いた最適化
+
+特定の条件下では、ビット演算を用いることで比較処理を高速化できる。特に、文字セットが小さい場合（例：DNA配列のA, C, G, T）に有効である。
+
+```cpp
+// DNA配列用の最適化版
+vector<int> z_algorithm_dna(const string& s) {
+    int n = s.length();
+    vector<int> z(n);
+    
+    // DNA文字を2ビットにエンコード
+    vector<uint64_t> encoded((n + 31) / 32);
+    for (int i = 0; i < n; i++) {
+        int val = (s[i] == 'A') ? 0 : (s[i] == 'C') ? 1 : 
+                  (s[i] == 'G') ? 2 : 3;
+        encoded[i / 32] |= uint64_t(val) << (2 * (i % 32));
+    }
+    
+    // エンコードされたデータでZ配列を計算
+    // 64ビット単位で比較することで高速化
+    // ... (実装詳細は省略)
+    
+    return z;
+}
+```
+
+## 実践的な問題解決例
+
+### 問題1：文字列の圧縮表現
+
+文字列Sが与えられたとき、S = A^k B（Aをk回繰り返した後にBを連結）の形で表現できる場合、最大のkを求める問題を考える。
+
+```python
+def max_repetition_factor(s):
+    n = len(s)
+    z = z_algorithm(s)
+    
+    max_k = 1
+    for period in range(1, n):
+        if z[period] < period:
+            continue
+        
+        # How many complete repetitions?
+        k = 1 + z[period] // period
+        max_k = max(max_k, k)
+    
+    return max_k
+```
+
+この問題は、文字列の構造を理解する上で重要であり、データ圧縮アルゴリズムの基礎となる考え方を含んでいる。
+
+### 問題2：巡回シフトの同一性判定
+
+2つの文字列S, Tが与えられたとき、Sの巡回シフトでTと一致するものが存在するかを判定する問題である。
+
+```python
+def is_rotation(s, t):
+    if len(s) != len(t):
+        return False
+    
+    # S + S contains all rotations of S
+    combined = s + s + "$" + t
+    z = z_algorithm(combined)
+    
+    n = len(s)
+    for i in range(2 * n + 1, len(combined)):
+        if z[i] == n:
+            return True
+    
+    return False
+```
+
+この手法は、文字列の巡回的性質を線形時間で扱う elegant な方法を示している。
+
+## パフォーマンス分析と最適化戦略
+
+Z-algorithmの実行時間は理論的にはO(n)だが、実際の性能は実装の詳細に大きく依存する。以下に、パフォーマンスに影響する要因と最適化戦略を詳述する。
+
+### 分岐予測の最適化
+
+現代のCPUは分岐予測機構を持っており、予測が外れると大きなペナルティが発生する。Z-algorithmの実装において、分岐を減らすか、予測しやすい形にすることが重要である。
+
+```cpp
+// 分岐予測を考慮した実装
+inline int compute_z_value(const string& s, int i, int l, int r, 
+                          const vector<int>& z) {
+    // 条件分岐を減らすためのテクニック
+    int z_val = (i <= r) ? min(r - i + 1, z[i - l]) : 0;
+    
+    // ループ内の分岐を減らす
+    int limit = s.length() - i;
+    const char* s1 = s.data() + z_val;
+    const char* s2 = s.data() + i + z_val;
+    
+    // SIMD命令を使用可能にするアラインメント
+    while (z_val < limit && *s1 == *s2) {
+        s1++; s2++; z_val++;
+    }
+    
+    return z_val;
+}
+```
+
+### メモリ使用量の削減
+
+大規模な文字列を扱う場合、メモリ使用量が問題となることがある。Z配列を圧縮して保存する手法や、必要な部分のみを計算する手法が有効である。
+
+```python
+class CompressedZArray:
+    def __init__(self, s):
+        self.s = s
+        self.n = len(s)
+        self.sparse_z = {}  # Store only non-zero values
+        self._compute()
+    
+    def _compute(self):
+        l, r = 0, 0
+        for i in range(1, self.n):
+            z_val = 0
+            if i <= r:
+                k = i - l
+                z_val = min(r - i + 1, self.get(k))
+            
+            while i + z_val < self.n and \
+                  self.s[z_val] == self.s[i + z_val]:
+                z_val += 1
+            
+            if z_val > 0:
+                self.sparse_z[i] = z_val
+                
+            if i + z_val - 1 > r:
+                l, r = i, i + z_val - 1
+    
+    def get(self, i):
+        return self.sparse_z.get(i, 0)
+```
+
 ## 拡張と発展的話題
 
 Z-algorithmの基本的な考え方は、より複雑な文字列処理問題にも拡張できる。例えば、2次元パターンマッチングでは、各行に対してZ-algorithmを適用し、その結果を縦方向に再度処理することで、2次元パターンの検索を効率化できる。
 
-また、近似文字列マッチングへの拡張も研究されている。編集距離がk以下の近似マッチを見つける問題では、Z-algorithmをベースとした動的計画法を組み合わせることで、効率的なアルゴリズムを構築できる[1]。
+### 2次元Z-algorithm
 
-圧縮文字列に対するZ-algorithm の適用も興味深い研究分野である。ランレングス符号化された文字列に対して、展開することなく直接Z配列を計算する手法が提案されている[2]。これにより、大規模なテキストデータの処理がより効率的になる。
+2次元配列に対するZ-algorithmの拡張は、画像処理やパターン認識において有用である。
 
-並列化の観点からも、Z-algorithmは興味深い性質を持つ。文字列を複数のブロックに分割し、各ブロックで独立にZ配列を計算した後、境界部分の情報を統合することで、並列化による高速化が可能である。ただし、Z-boxの情報共有が必要となるため、完全に独立した並列処理は困難である。
+```python
+def z_algorithm_2d(matrix):
+    rows, cols = len(matrix), len(matrix[0])
+    z_horizontal = []
+    
+    # Step 1: Apply Z-algorithm to each row
+    for row in matrix:
+        z_horizontal.append(z_algorithm(row))
+    
+    # Step 2: Apply Z-algorithm vertically
+    z_2d = [[0] * cols for _ in range(rows)]
+    
+    for j in range(cols):
+        column = [z_horizontal[i][j] for i in range(rows)]
+        z_vertical = z_algorithm(column)
+        
+        for i in range(rows):
+            z_2d[i][j] = z_vertical[i]
+    
+    return z_2d
+```
 
-実用的な観点では、Z-algorithmは全文検索エンジンやバイオインフォマティクスにおけるシーケンスアラインメントなど、大規模なテキスト処理が必要な分野で広く活用されている。特に、ゲノム配列解析では、繰り返し配列の検出やタンデムリピートの同定にZ-algorithmが使用される。
+### 近似文字列マッチング
+
+編集距離がk以下の近似マッチを見つける問題では、Z-algorithmをベースとした動的計画法を組み合わせることで、効率的なアルゴリズムを構築できる[1]。
+
+```python
+def approximate_z_algorithm(s, max_errors):
+    n = len(s)
+    # dp[i][e] = maximum match length at position i with e errors
+    dp = [[0] * (max_errors + 1) for _ in range(n)]
+    
+    for i in range(1, n):
+        for e in range(max_errors + 1):
+            j = 0
+            while i + j < n and j + e <= max_errors:
+                if s[j] == s[i + j]:
+                    dp[i][e] = max(dp[i][e], j + 1)
+                    j += 1
+                else:
+                    if e < max_errors:
+                        # Allow mismatch
+                        dp[i][e + 1] = max(dp[i][e + 1], j + 1)
+                    break
+    
+    return dp
+```
+
+### 圧縮文字列での直接計算
+
+ランレングス符号化された文字列に対して、展開することなく直接Z配列を計算する手法が提案されている[2]。これにより、大規模なテキストデータの処理がより効率的になる。
+
+```python
+class RLEString:
+    def __init__(self, chars, counts):
+        self.chars = chars
+        self.counts = counts
+        self.n = sum(counts)
+    
+    def z_algorithm_rle(self):
+        # RLE形式のままZ配列を計算
+        z_rle = []
+        
+        # 各ランに対して処理
+        for i in range(len(self.chars)):
+            # ... (詳細な実装は複雑なため省略)
+            pass
+        
+        return z_rle
+```
+
+### 並列処理による高速化
+
+Z-algorithmの並列化は、文字列を複数のブロックに分割し、各ブロックで独立にZ配列を計算した後、境界部分の情報を統合することで実現できる。
+
+```python
+from multiprocessing import Pool
+
+def parallel_z_algorithm(s, num_processes=4):
+    n = len(s)
+    block_size = (n + num_processes - 1) // num_processes
+    
+    def process_block(args):
+        start, end, s = args
+        # Local Z-array computation
+        local_z = z_algorithm(s[start:end])
+        return start, local_z
+    
+    # Parallel processing
+    with Pool(num_processes) as pool:
+        blocks = [(i * block_size, 
+                   min((i + 1) * block_size, n), s) 
+                  for i in range(num_processes)]
+        results = pool.map(process_block, blocks)
+    
+    # Merge results
+    z = [0] * n
+    for start, local_z in results:
+        for i, val in enumerate(local_z):
+            z[start + i] = val
+    
+    # Fix boundary issues
+    # ... (境界処理の実装)
+    
+    return z
+```
+
+## 実用的な応用分野
+
+Z-algorithmは理論的な美しさだけでなく、実用的な価値も高い。以下に、実際の応用分野での使用例を紹介する。
+
+### バイオインフォマティクス
+
+ゲノム配列解析では、繰り返し配列の検出やタンデムリピートの同定にZ-algorithmが使用される。特に、変異体の検出や進化的関係の解析において重要な役割を果たす。
+
+```python
+def find_tandem_repeats(dna_sequence, min_length=3):
+    n = len(dna_sequence)
+    z = z_algorithm(dna_sequence)
+    
+    tandem_repeats = []
+    for i in range(1, n):
+        if z[i] >= i and i + z[i] <= n:
+            # Found a tandem repeat
+            repeat_unit = dna_sequence[:i]
+            repeat_count = 1 + z[i] // i
+            if len(repeat_unit) >= min_length:
+                tandem_repeats.append({
+                    'position': 0,
+                    'unit': repeat_unit,
+                    'count': repeat_count
+                })
+    
+    return tandem_repeats
+```
+
+### データ圧縮
+
+LZ77やLZ78などの辞書式圧縮アルゴリズムでは、繰り返しパターンの検出が重要である。Z-algorithmを用いることで、これらのパターンを効率的に発見できる。
+
+### テキストエディタの実装
+
+テキストエディタの検索・置換機能や、構文ハイライトのためのパターンマッチングにおいて、Z-algorithmは高速な処理を実現する。
+
+```python
+class TextEditor:
+    def __init__(self, text):
+        self.text = text
+        self.z_cache = {}
+    
+    def find_all(self, pattern):
+        cache_key = pattern
+        if cache_key not in self.z_cache:
+            combined = pattern + "$" + self.text
+            self.z_cache[cache_key] = z_algorithm(combined)
+        
+        z = self.z_cache[cache_key]
+        pattern_len = len(pattern)
+        
+        positions = []
+        for i in range(pattern_len + 1, len(z)):
+            if z[i] == pattern_len:
+                positions.append(i - pattern_len - 1)
+        
+        return positions
+```
 
 [1] Gusfield, D. (1997). Algorithms on strings, trees, and sequences: computer science and computational biology. Cambridge University Press.
 

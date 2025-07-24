@@ -320,7 +320,313 @@ bool verify_phi_implementation(int n) {
 }
 ```
 
-オイラーのφ関数は、その単純な定義にもかかわらず、数論の深い性質と密接に関わっており、競技プログラミングにおいても多様な応用を持つ。基本的な計算方法から始まり、効率的なアルゴリズム、そして様々な問題への応用まで、体系的に理解することで、より複雑な問題にも対処できるようになる。特に、モジュラー算術、数え上げ問題、暗号理論などの分野では、φ関数の理解が問題解決の鍵となることが多い。
+## 高度な最適化手法
+
+競技プログラミングの実践において、基本的なアルゴリズムだけでは時間制限に間に合わない場合がある。そのような状況では、より高度な最適化手法が必要となる。
+
+### ポラード・ロー法による素因数分解
+
+大きな数に対してφ関数を計算する必要がある場合、通常のO(√n)の素因数分解では時間がかかりすぎることがある。ポラード・ロー法は、確率的アルゴリズムであるが、平均的にO(n^(1/4))の時間計算量で素因数を見つけることができる。
+
+```cpp
+long long pollard_rho(long long n) {
+    if (n % 2 == 0) return 2;
+    if (is_prime(n)) return n;
+    
+    auto f = [&](long long x) {
+        return (__int128)x * x % n + 1;
+    };
+    
+    long long x = 2, y = 2, d = 1;
+    while (d == 1) {
+        x = f(x);
+        y = f(f(y));
+        d = gcd(abs(x - y), n);
+    }
+    
+    return d == n ? pollard_rho(n) : d;
+}
+```
+
+この手法を用いることで、10^18程度の大きな数に対してもφ関数を実用的な時間で計算できる。
+
+### メビウス関数との関係
+
+メビウス関数μ(n)とオイラーのφ関数には深い関係がある。メビウス関数は以下のように定義される：
+
+- μ(n) = 1 （nが偶数個の異なる素因数の積）
+- μ(n) = -1 （nが奇数個の異なる素因数の積）
+- μ(n) = 0 （nが平方因子を持つ）
+
+この関数を用いると、φ関数は以下の式で表現できる：
+
+$$\phi(n) = \sum_{d|n} \mu(d) \cdot \frac{n}{d}$$
+
+この関係は、包除原理を用いた別の観点からφ関数を理解する手段を提供する。
+
+```mermaid
+graph TD
+    A["メビウス関数 μ(n)"]
+    B["n = p₁ × p₂ × ... × pₖ"]
+    C["μ(n) = (-1)^k"]
+    D["平方因子あり"]
+    E["μ(n) = 0"]
+    F["φ(n) = Σ μ(d) × n/d"]
+    
+    A --> B
+    B --> C
+    A --> D
+    D --> E
+    A --> F
+```
+
+## 離散対数問題への応用
+
+オイラーのφ関数は、離散対数問題の解法においても重要な役割を果たす。離散対数問題とは、g^x ≡ h (mod p)を満たすxを求める問題である。
+
+### Baby-step Giant-step アルゴリズム
+
+このアルゴリズムは、O(√φ(p))の時間計算量で離散対数を計算する。φ(p)の値を知ることで、探索範囲を効率的に制限できる。
+
+```cpp
+long long discrete_log(long long g, long long h, long long p) {
+    long long phi = euler_phi(p);
+    long long m = ceil(sqrt(phi));
+    
+    unordered_map<long long, long long> table;
+    long long g_pow = 1;
+    
+    // Baby steps
+    for (long long j = 0; j < m; j++) {
+        table[g_pow] = j;
+        g_pow = g_pow * g % p;
+    }
+    
+    // Giant steps
+    long long g_inv_m = mod_pow(mod_inverse(g, p), m, p);
+    long long gamma = h;
+    
+    for (long long i = 0; i < m; i++) {
+        if (table.count(gamma)) {
+            return i * m + table[gamma];
+        }
+        gamma = gamma * g_inv_m % p;
+    }
+    
+    return -1;  // No solution
+}
+```
+
+## 中国剰余定理との組み合わせ
+
+中国剰余定理（Chinese Remainder Theorem, CRT）とオイラーのφ関数を組み合わせることで、より効率的な計算が可能になる場合がある。
+
+n = p₁^a₁ × p₂^a₂ × ... × pₖ^aₖと素因数分解されるとき、各素数べきに対してφ(pᵢ^aᵢ)を計算し、それらを乗法的に組み合わせることで全体のφ(n)を得る。これは、大きな数を扱う際に数値的な安定性を保つ上でも有効である。
+
+```cpp
+struct CRT {
+    vector<long long> m, r;
+    
+    void add_congruence(long long mi, long long ri) {
+        m.push_back(mi);
+        r.push_back(ri);
+    }
+    
+    pair<long long, long long> solve() {
+        long long M = 1, R = 0;
+        for (int i = 0; i < m.size(); i++) {
+            long long Mi = M / gcd(M, m[i]) * m[i];
+            long long g, x, y;
+            extended_gcd(M, m[i], g, x, y);
+            if ((r[i] - R) % g != 0) return {-1, -1};
+            
+            long long t = (r[i] - R) / g * x % (m[i] / g);
+            R += M * t;
+            M = Mi;
+        }
+        return {R % M, M};
+    }
+};
+```
+
+## 実装の並列化
+
+現代のマルチコアプロセッサを活用して、φ関数の計算を並列化することも可能である。特に、前計算テーブルの構築や、複数の独立したクエリの処理において効果的である。
+
+```cpp
+#include <thread>
+#include <future>
+
+vector<int> parallel_phi_table(int N, int num_threads = 4) {
+    vector<int> phi(N + 1);
+    vector<future<void>> futures;
+    
+    int chunk_size = (N + num_threads - 1) / num_threads;
+    
+    for (int t = 0; t < num_threads; t++) {
+        futures.push_back(async(launch::async, [&, t]() {
+            int start = t * chunk_size;
+            int end = min((t + 1) * chunk_size, N + 1);
+            
+            for (int i = start; i < end; i++) {
+                phi[i] = euler_phi(i);
+            }
+        }));
+    }
+    
+    for (auto& f : futures) {
+        f.wait();
+    }
+    
+    return phi;
+}
+```
+
+## セグメント木による区間クエリ
+
+競技プログラミングでは、配列の区間に対するφ関数の和や積を求める問題も出題される。このような場合、セグメント木を用いることで効率的にクエリを処理できる。
+
+```cpp
+template<typename T>
+class SegmentTree {
+    vector<T> tree;
+    int n;
+    
+    void build(vector<T>& arr, int node, int start, int end) {
+        if (start == end) {
+            tree[node] = euler_phi(arr[start]);
+        } else {
+            int mid = (start + end) / 2;
+            build(arr, 2*node, start, mid);
+            build(arr, 2*node+1, mid+1, end);
+            tree[node] = tree[2*node] + tree[2*node+1];
+        }
+    }
+    
+public:
+    SegmentTree(vector<T>& arr) {
+        n = arr.size();
+        tree.resize(4 * n);
+        build(arr, 1, 0, n-1);
+    }
+    
+    T query(int l, int r) {
+        return query_rec(1, 0, n-1, l, r);
+    }
+    
+private:
+    T query_rec(int node, int start, int end, int l, int r) {
+        if (r < start || end < l) return 0;
+        if (l <= start && end <= r) return tree[node];
+        
+        int mid = (start + end) / 2;
+        return query_rec(2*node, start, mid, l, r) +
+               query_rec(2*node+1, mid+1, end, l, r);
+    }
+};
+```
+
+## 数論的変換での応用
+
+数論的変換（Number Theoretic Transform, NTT）は、高速フーリエ変換の整数版であり、モジュラー算術を用いて多項式の積を効率的に計算する。NTTでは、法となる素数pがp = k × 2^n + 1の形である必要があり、原始根の計算にφ関数が使用される。
+
+```cpp
+const long long NTT_PRIME = 998244353;  // = 119 * 2^23 + 1
+
+long long find_primitive_root(long long p) {
+    long long phi = p - 1;  // p is prime
+    vector<long long> factors;
+    
+    // Find prime factors of φ(p)
+    long long temp = phi;
+    for (long long i = 2; i * i <= temp; i++) {
+        if (temp % i == 0) {
+            factors.push_back(i);
+            while (temp % i == 0) temp /= i;
+        }
+    }
+    if (temp > 1) factors.push_back(temp);
+    
+    // Check each candidate
+    for (long long g = 2; g < p; g++) {
+        bool is_primitive = true;
+        for (long long factor : factors) {
+            if (mod_pow(g, phi / factor, p) == 1) {
+                is_primitive = false;
+                break;
+            }
+        }
+        if (is_primitive) return g;
+    }
+    
+    return -1;  // Should not reach here for valid prime
+}
+```
+
+## 誤差評価と数値的安定性
+
+大きな数に対してφ関数を計算する際、浮動小数点演算を使用すると誤差が蓄積する可能性がある。特に、φ(n) = n × Π(1 - 1/p)の公式を直接適用する場合は注意が必要である。
+
+整数演算を保つためには、以下のような実装が推奨される：
+
+```cpp
+long long stable_euler_phi(long long n) {
+    long long result = n;
+    vector<pair<long long, int>> factors = factorize(n);
+    
+    for (auto [p, exp] : factors) {
+        // Avoid floating point: result *= (p-1)/p
+        result = result / p * (p - 1);
+    }
+    
+    return result;
+}
+```
+
+## 問題例と解法パターン
+
+### パターン1: 条件を満たすφ(n)の個数
+
+「φ(n) = kとなるnの個数を求めよ」という形式の問題は、φ関数の逆関数を考える必要がある。一般に、φ(n) = kとなるnは有限個存在し、それらは特定の形に限定される。
+
+```cpp
+vector<long long> inverse_phi(long long k) {
+    vector<long long> result;
+    
+    // n = 1, 2 are special cases
+    if (k == 1) {
+        result.push_back(1);
+        result.push_back(2);
+    }
+    
+    // For k > 1, check divisors of k
+    for (long long d = 1; d * d <= k; d++) {
+        if (k % d == 0) {
+            check_candidate(k, d, result);
+            if (d != k / d) {
+                check_candidate(k, k / d, result);
+            }
+        }
+    }
+    
+    return result;
+}
+```
+
+### パターン2: φ関数の反復適用
+
+「φ(φ(...φ(n)...))を計算せよ」という形式の問題では、φ関数を繰り返し適用すると最終的に1に収束することを利用する。
+
+```cpp
+long long iterated_phi(long long n, long long k) {
+    for (long long i = 0; i < k && n > 1; i++) {
+        n = euler_phi(n);
+    }
+    return n;
+}
+```
+
+オイラーのφ関数は、その単純な定義にもかかわらず、数論の深い性質と密接に関わっており、競技プログラミングにおいても多様な応用を持つ。基本的な計算方法から始まり、効率的なアルゴリズム、そして様々な問題への応用まで、体系的に理解することで、より複雑な問題にも対処できるようになる。特に、モジュラー算術、数え上げ問題、暗号理論などの分野では、φ関数の理解が問題解決の鍵となることが多い。高度な最適化手法や並列化技術を組み合わせることで、実用的な時間内により大きな問題インスタンスを解くことも可能となる。
 
 ---
 
@@ -329,3 +635,7 @@ bool verify_phi_implementation(int n) {
 [^2]: Hardy, G. H., & Wright, E. M. (2008). An Introduction to the Theory of Numbers (6th ed.). Oxford University Press.
 
 [^3]: Knuth, D. E. (1997). The Art of Computer Programming, Volume 2: Seminumerical Algorithms (3rd ed.). Addison-Wesley.
+
+[^4]: Bach, E., & Shallit, J. (1996). Algorithmic Number Theory, Volume 1: Efficient Algorithms. MIT Press.
+
+[^5]: Rosen, K. H. (2011). Elementary Number Theory and Its Applications (6th ed.). Pearson.
