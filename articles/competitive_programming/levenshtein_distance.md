@@ -319,6 +319,48 @@ Pythonの場合、`unicodedata`モジュールを使用して正規化を行う�
 
 計算複雑性の観点では、レーベンシュタイン距離の計算は、定数アルファベットサイズの仮定の下で、$O(mn)$ より真に高速なアルゴリズムは存在しないことが証明されている^[6]^。ただし、実用的には様々な高速化手法により、平均的なケースでの性能を大幅に改善できる。
 
+## 競技プログラミングにおける実装
+
+競技プログラミングでは、レーベンシュタイン距離は文字列処理問題の基本的なテクニックとして頻繁に登場する。実装の簡潔性と効率性のバランスが重要であり、以下のような最適化されたテンプレートがよく使用される：
+
+```cpp
+#include <vector>
+#include <string>
+#include <algorithm>
+
+int editDistance(const std::string& s, const std::string& t) {
+    int m = s.length();
+    int n = t.length();
+    
+    // Space optimization: use only O(min(m,n)) space
+    if (m > n) return editDistance(t, s);
+    
+    std::vector<int> dp(n + 1);
+    for (int j = 0; j <= n; ++j) dp[j] = j;
+    
+    for (int i = 1; i <= m; ++i) {
+        int prev = dp[0];
+        dp[0] = i;
+        
+        for (int j = 1; j <= n; ++j) {
+            int temp = dp[j];
+            if (s[i-1] == t[j-1]) {
+                dp[j] = prev;
+            } else {
+                dp[j] = 1 + std::min({prev, dp[j], dp[j-1]});
+            }
+            prev = temp;
+        }
+    }
+    
+    return dp[n];
+}
+```
+
+競技プログラミングにおける典型的な応用として、部分文字列の編集距離を求める問題がある。この場合、文字列の一部分に対してレーベンシュタイン距離を計算する必要があり、セグメント木やsparse tableなどのデータ構造と組み合わせることで効率的な解法を構築できる。
+
+また、編集距離を制約条件とする最適化問題も頻出する。例えば、「編集距離が$k$以下となる文字列の中で、辞書順最小のものを求めよ」といった問題では、動的計画法の状態に追加の情報を持たせることで解決できる。
+
 ---
 
 ^[1]^ Levenshtein, V. I. (1966). "Binary codes capable of correcting deletions, insertions, and reversals". Soviet Physics Doklady. 10 (8): 707–710.
