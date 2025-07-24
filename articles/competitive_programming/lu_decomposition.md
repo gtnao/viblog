@@ -216,3 +216,280 @@ LU分解は、より一般的なQR分解やSVD（特異値分解）の特殊ケ�
 [^2]: Trefethen, L. N., & Bau, D. (1997). Numerical linear algebra. SIAM.
 
 [^3]: Higham, N. J. (2002). Accuracy and stability of numerical algorithms (2nd ed.). SIAM.
+
+## 誤差解析の詳細
+
+LU分解における誤差の振る舞いを詳しく理解することは、数値計算の信頼性を確保する上で不可欠である。浮動小数点演算では、各演算ごとに丸め誤差が発生し、これが蓄積することで最終結果に大きな影響を与える可能性がある。
+
+後退誤差解析（backward error analysis）の観点から、計算されたLU分解$\hat{L}\hat{U}$は、わずかに摂動された行列$(A + \Delta A)$の厳密な分解として解釈できる。つまり、$\hat{L}\hat{U} = A + \Delta A$となる$\Delta A$が存在し、その大きさは以下のように評価される：
+
+$$\frac{\|\Delta A\|}{\|A\|} \leq cn^3u\rho$$
+
+ここで、$c$は小さな定数、$u$は機械イプシロン（倍精度で約$2.2 \times 10^{-16}$）、$\rho$は成長因子である。成長因子は分解過程で現れる要素の最大値と元の行列の要素の最大値の比として定義され、数値安定性の指標となる。
+
+前進誤差（forward error）については、計算された解$\hat{x}$と真の解$x$の相対誤差が、条件数$\kappa(A)$と後退誤差の積で抑えられる：
+
+$$\frac{\|x - \hat{x}\|}{\|x\|} \leq \kappa(A) \cdot \frac{\|\Delta A\|}{\|A\|}$$
+
+この関係式は、悪条件行列（条件数が大きい行列）に対しては、たとえ後退誤差が小さくても、解の誤差が大きくなる可能性があることを示している。
+
+## 競技プログラミングにおける具体的問題例
+
+LU分解が効果的に適用できる競技プログラミングの問題をいくつか詳しく見ていく。
+
+### 例1: 電気回路の解析
+
+$n$個のノードを持つ電気回路において、各ノードの電圧を求める問題を考える。キルヒホッフの法則を適用すると、以下の形の連立方程式が得られる：
+
+$$Gv = i$$
+
+ここで、$G$はコンダクタンス行列、$v$は電圧ベクトル、$i$は電流ベクトルである。回路の構成要素が変化しない限り$G$は固定であるため、異なる電流源に対する解析にはLU分解が有効である。
+
+### 例2: 確率的グラフ問題
+
+ランダムウォークの定常分布や、マルコフ連鎖の吸収確率を求める問題では、$(I - P)x = b$の形の方程式を解く必要がある。ここで$P$は推移確率行列である。複数の初期条件や境界条件に対して計算する場合、LU分解による前処理が計算時間を大幅に削減する。
+
+### 例3: 多項式補間
+
+$n$個の点$(x_i, y_i)$を通る$n-1$次多項式を求める問題では、Vandermonde行列を係数とする連立方程式を解く：
+
+$$\begin{pmatrix}
+1 & x_1 & x_1^2 & \cdots & x_1^{n-1} \\
+1 & x_2 & x_2^2 & \cdots & x_2^{n-1} \\
+\vdots & \vdots & \vdots & \ddots & \vdots \\
+1 & x_n & x_n^2 & \cdots & x_n^{n-1}
+\end{pmatrix} \begin{pmatrix}
+a_0 \\ a_1 \\ \vdots \\ a_{n-1}
+\end{pmatrix} = \begin{pmatrix}
+y_1 \\ y_2 \\ \vdots \\ y_n
+\end{pmatrix}$$
+
+Vandermonde行列は条件数が非常に大きくなりやすいため、数値安定性に特に注意が必要である。
+
+## 並列化アルゴリズム
+
+現代の計算環境では、並列処理によるLU分解の高速化が重要である。主要な並列化手法として、以下のアプローチがある。
+
+### ブロック並列化
+
+行列を$p \times p$のブロックに分割し、各プロセッサがブロックを担当する。通信パターンは以下のようになる：
+
+```mermaid
+graph TD
+    subgraph "ステップ k"
+        Pivot["ピボットブロック選択"]
+        Bcast1["L列ブロードキャスト"]
+        Bcast2["U行ブロードキャスト"]
+        Update["各ブロック更新"]
+    end
+    
+    Pivot --> Bcast1
+    Pivot --> Bcast2
+    Bcast1 --> Update
+    Bcast2 --> Update
+```
+
+各ステップで、対角ブロックを分解し、その結果を使って$L$の列ブロックと$U$の行ブロックを計算、最後に残りのブロックを更新する。この手法の並列効率は、ブロックサイズと通信遅延のバランスに大きく依存する。
+
+### パイプライン並列化
+
+列方向の依存関係を利用して、パイプライン的に処理を進める。第$k$列の消去が完了したら、即座に第$k+1$列の処理を開始できる部分がある。これにより、異なるプロセッサが異なる列の処理を同時に実行できる。
+
+## 実装の詳細と最適化
+
+競技プログラミングで使用する完全な実装を示す。この実装には、前進代入と後退代入も含まれる。
+
+```cpp
+struct LUSolver {
+    int n;
+    vector<vector<double>> LU;
+    vector<int> perm;
+    int sign;
+    const double EPS = 1e-9;
+    
+    LUSolver(const vector<vector<double>>& A) : n(A.size()), LU(A), perm(n), sign(1) {
+        iota(perm.begin(), perm.end(), 0);
+        decompose();
+    }
+    
+    bool decompose() {
+        for (int k = 0; k < n; k++) {
+            // Partial pivoting
+            int pivot = k;
+            double maxval = abs(LU[k][k]);
+            for (int i = k + 1; i < n; i++) {
+                if (abs(LU[i][k]) > maxval) {
+                    maxval = abs(LU[i][k]);
+                    pivot = i;
+                }
+            }
+            
+            if (maxval < EPS) return false;
+            
+            if (pivot != k) {
+                swap(LU[k], LU[pivot]);
+                swap(perm[k], perm[pivot]);
+                sign = -sign;
+            }
+            
+            // Elimination
+            for (int i = k + 1; i < n; i++) {
+                LU[i][k] /= LU[k][k];
+                for (int j = k + 1; j < n; j++) {
+                    LU[i][j] -= LU[i][k] * LU[k][j];
+                }
+            }
+        }
+        return true;
+    }
+    
+    vector<double> solve(const vector<double>& b) {
+        vector<double> pb(n);
+        for (int i = 0; i < n; i++) {
+            pb[i] = b[perm[i]];
+        }
+        
+        // Forward substitution
+        vector<double> y(n);
+        for (int i = 0; i < n; i++) {
+            y[i] = pb[i];
+            for (int j = 0; j < i; j++) {
+                y[i] -= LU[i][j] * y[j];
+            }
+        }
+        
+        // Backward substitution
+        vector<double> x(n);
+        for (int i = n - 1; i >= 0; i--) {
+            x[i] = y[i];
+            for (int j = i + 1; j < n; j++) {
+                x[i] -= LU[i][j] * x[j];
+            }
+            x[i] /= LU[i][i];
+        }
+        
+        return x;
+    }
+    
+    double determinant() {
+        double det = sign;
+        for (int i = 0; i < n; i++) {
+            det *= LU[i][i];
+        }
+        return det;
+    }
+    
+    vector<vector<double>> inverse() {
+        vector<vector<double>> inv(n, vector<double>(n));
+        vector<double> e(n);
+        for (int i = 0; i < n; i++) {
+            fill(e.begin(), e.end(), 0);
+            e[i] = 1;
+            vector<double> col = solve(e);
+            for (int j = 0; j < n; j++) {
+                inv[j][i] = col[j];
+            }
+        }
+        return inv;
+    }
+};
+```
+
+この実装の特徴：
+
+1. **インプレース分解**: $L$と$U$を同じ配列に格納（$L$の対角成分は暗黙的に1）
+2. **置換の記録**: `perm`配列で行の置換を記録
+3. **符号の追跡**: 行列式計算のため置換の符号を記録
+4. **エラーハンドリング**: ピボットが小さすぎる場合は分解失敗を返す
+
+### メモリアクセスパターンの最適化
+
+キャッシュ効率を向上させるため、内側のループでは列方向のアクセスを避け、行方向のアクセスを優先する。C++では行優先（row-major）でデータが格納されるため、この最適化は特に重要である。
+
+```cpp
+// Cache-friendly version
+for (int i = k + 1; i < n; i++) {
+    double factor = LU[i][k] / LU[k][k];
+    LU[i][k] = factor;  // Store L element
+    // Access row i sequentially
+    for (int j = k + 1; j < n; j++) {
+        LU[i][j] -= factor * LU[k][j];
+    }
+}
+```
+
+## 整数演算によるLU分解
+
+競技プログラミングでは、浮動小数点誤差を完全に回避するため、有理数演算や剰余演算を用いることがある。
+
+### 分数を用いた厳密計算
+
+```cpp
+struct Fraction {
+    long long num, den;
+    
+    Fraction(long long n = 0, long long d = 1) : num(n), den(d) {
+        if (den < 0) { num = -num; den = -den; }
+        long long g = gcd(abs(num), den);
+        num /= g; den /= g;
+    }
+    
+    Fraction operator*(const Fraction& f) const {
+        return Fraction(num * f.num, den * f.den);
+    }
+    
+    Fraction operator-(const Fraction& f) const {
+        return Fraction(num * f.den - f.num * den, den * f.den);
+    }
+    
+    Fraction operator/(const Fraction& f) const {
+        return Fraction(num * f.den, den * f.num);
+    }
+};
+```
+
+### モジュラー演算による実装
+
+大きな素数$p$で剰余を取ることで、整数演算として実行する。複数の素数での結果から、中国剰余定理で元の値を復元する。
+
+```cpp
+const long long MOD = 998244353;
+
+long long modinv(long long a, long long m = MOD) {
+    return a == 1 ? 1 : m - modinv(m % a, a) * m / a;
+}
+
+bool LUDecompositionMod(vector<vector<long long>>& A) {
+    int n = A.size();
+    for (int k = 0; k < n; k++) {
+        if (A[k][k] == 0) return false;
+        
+        long long inv = modinv(A[k][k]);
+        for (int i = k + 1; i < n; i++) {
+            A[i][k] = A[i][k] * inv % MOD;
+            for (int j = k + 1; j < n; j++) {
+                A[i][j] = (A[i][j] - A[i][k] * A[k][j] % MOD + MOD) % MOD;
+            }
+        }
+    }
+    return true;
+}
+```
+
+## 疎行列に対するLU分解
+
+競技プログラミングでは、グラフの隣接行列など、疎な構造を持つ行列を扱うことがある。疎行列に対しては、非零要素のみを格納し、フィルイン（fill-in、分解過程で新たに非零になる要素）を最小化する工夫が必要である。
+
+### 記号的分解（Symbolic Factorization）
+
+数値計算を行う前に、どの位置に非零要素が現れるかを予測する。これにより、必要なメモリを事前に確保し、効率的なデータ構造を構築できる。
+
+### 順序付け戦略
+
+フィルインを減らすため、行と列の順序を最適化する。代表的な手法として：
+
+1. **最小次数順序付け（Minimum Degree Ordering）**: 各ステップで最も非零要素の少ない行/列を選択
+2. **Nested Dissection**: グラフ分割の考え方を用いて、再帰的に順序を決定
+3. **Reverse Cuthill-McKee**: 帯幅を最小化する順序付け
+
+これらの順序付けにより、計算量と記憶容量を大幅に削減できる場合がある。
