@@ -66,6 +66,11 @@ $title (category: $category, slug: $slug)
 		echo "警告: ファイルが生成されませんでした: $output_file"
 	fi
 
+	# Git操作を実行
+	git add .
+	git commit -m "Add article: $slug"
+	git push
+	
 	# API制限対策のため少し待機
 	sleep 2
 done
