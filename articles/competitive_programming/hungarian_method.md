@@ -275,6 +275,295 @@ Edmonds-Karpアルゴリズムとの関連も深い。最大フロー問題に�
 
 分岐予測の最適化も効果的である。内側のループで頻繁に実行される条件分岐については、より頻繁に真となる条件を先に記述することで、分岐予測の成功率を向上させることができる。
 
+## 実装例：完全なC++実装
+
+以下に、競技プログラミングで実際に使用可能な完全なハンガリアン法の実装を示す。この実装は、前述の理論的考察をすべて反映しており、数値的安定性と効率性を考慮している。
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <limits>
+
+template<typename T>
+class HungarianAlgorithm {
+private:
+    const T INF = std::numeric_limits<T>::max() / 2;
+    int n;
+    std::vector<std::vector<T>> cost;
+    std::vector<T> u, v;
+    std::vector<int> p, way;
+    
+public:
+    HungarianAlgorithm(const std::vector<std::vector<T>>& c) : cost(c) {
+        n = cost.size();
+        u.assign(n + 1, 0);
+        v.assign(n + 1, 0);
+        p.assign(n + 1, 0);
+        way.assign(n + 1, 0);
+    }
+    
+    std::pair<T, std::vector<int>> solve() {
+        // 1-indexed for convenience
+        for (int i = 1; i <= n; ++i) {
+            p[0] = i;
+            int j0 = 0;
+            std::vector<T> minv(n + 1, INF);
+            std::vector<bool> used(n + 1, false);
+            
+            // Find augmenting path
+            do {
+                used[j0] = true;
+                int i0 = p[j0];
+                T delta = INF;
+                int j1;
+                
+                // Calculate reduced costs and find minimum
+                for (int j = 1; j <= n; ++j) {
+                    if (!used[j]) {
+                        T cur = (i0 == 0 ? 0 : cost[i0-1][j-1]) - u[i0] - v[j];
+                        if (cur < minv[j]) {
+                            minv[j] = cur;
+                            way[j] = j0;
+                        }
+                        if (minv[j] < delta) {
+                            delta = minv[j];
+                            j1 = j;
+                        }
+                    }
+                }
+                
+                // Update dual variables
+                for (int j = 0; j <= n; ++j) {
+                    if (used[j]) {
+                        u[p[j]] += delta;
+                        v[j] -= delta;
+                    } else {
+                        minv[j] -= delta;
+                    }
+                }
+                
+                j0 = j1;
+            } while (p[j0] != 0);
+            
+            // Reconstruct augmenting path
+            do {
+                int j1 = way[j0];
+                p[j0] = p[j1];
+                j0 = j1;
+            } while (j0);
+        }
+        
+        // Extract solution
+        std::vector<int> assignment(n);
+        T total_cost = 0;
+        for (int j = 1; j <= n; ++j) {
+            if (p[j] != 0) {
+                assignment[p[j] - 1] = j - 1;
+                total_cost += cost[p[j] - 1][j - 1];
+            }
+        }
+        
+        return {total_cost, assignment};
+    }
+    
+    // Get dual variables for analysis
+    std::pair<std::vector<T>, std::vector<T>> getDualVariables() const {
+        std::vector<T> u_result(n), v_result(n);
+        for (int i = 0; i < n; ++i) {
+            u_result[i] = u[i + 1];
+            v_result[i] = v[i + 1];
+        }
+        return {u_result, v_result};
+    }
+};
+
+// Usage example
+int main() {
+    int n = 4;
+    std::vector<std::vector<long long>> cost = {
+        {2, 5, 1, 7},
+        {6, 2, 3, 4},
+        {3, 8, 2, 5},
+        {4, 3, 6, 1}
+    };
+    
+    HungarianAlgorithm<long long> hungarian(cost);
+    auto [min_cost, assignment] = hungarian.solve();
+    
+    std::cout << "Minimum cost: " << min_cost << std::endl;
+    std::cout << "Assignment: ";
+    for (int i = 0; i < n; ++i) {
+        std::cout << "Worker " << i << " -> Task " << assignment[i] << std::endl;
+    }
+    
+    return 0;
+}
+```
+
+この実装の特筆すべき点として、テンプレートを使用することで整数型と浮動小数点型の両方に対応していることが挙げられる。また、双対変数を取得するメソッドも提供しており、アルゴリズムの内部状態を分析することも可能である。
+
+## 高度な実装技法：メモリ効率の最適化
+
+大規模な問題に対応するため、メモリ効率を最適化した実装も重要である。特に、コスト行列が疎である場合、完全な行列を保持する必要はない。以下に、疎行列に対応した実装の要点を示す。
+
+```cpp
+struct SparseHungarian {
+    struct Edge {
+        int to;
+        long long cost;
+    };
+    
+    int n;
+    std::vector<std::vector<Edge>> adj;
+    std::vector<long long> u, v;
+    std::vector<int> match_u, match_v;
+    
+    // Sparse representation allows efficient iteration
+    void addEdge(int from, int to, long long cost) {
+        adj[from].push_back({to, cost});
+    }
+    
+    // Modified algorithm for sparse graphs
+    long long solveSparse() {
+        // Implementation details for sparse case
+        // Key difference: iterate only over existing edges
+        // Time complexity: O(n * m * log n) with heap optimization
+    }
+};
+```
+
+疎行列版の実装では、存在する辺のみを格納することで、メモリ使用量をO(m)に削減できる。ここでmは実際の辺数である。また、最小値の探索にヒープを使用することで、時間計算量も改善される可能性がある。
+
+## 並列化による高速化
+
+現代のマルチコアプロセッサを活用するため、ハンガリアン法の並列化も重要な研究課題である。最も並列化しやすい部分は、各反復におけるδ値の計算である。
+
+```cpp
+#include <thread>
+#include <atomic>
+
+class ParallelHungarian {
+    // Parallel delta computation
+    long long computeDeltaParallel(
+        const std::vector<bool>& used_i,
+        const std::vector<bool>& used_j,
+        int num_threads = 4
+    ) {
+        std::atomic<long long> global_min(INF);
+        std::vector<std::thread> threads;
+        
+        int chunk_size = n / num_threads;
+        for (int t = 0; t < num_threads; ++t) {
+            threads.emplace_back([&, t]() {
+                long long local_min = INF;
+                int start = t * chunk_size;
+                int end = (t == num_threads - 1) ? n : (t + 1) * chunk_size;
+                
+                for (int i = start; i < end; ++i) {
+                    if (used_i[i]) {
+                        for (int j = 0; j < n; ++j) {
+                            if (!used_j[j]) {
+                                long long slack = cost[i][j] - u[i] - v[j];
+                                local_min = std::min(local_min, slack);
+                            }
+                        }
+                    }
+                }
+                
+                // Update global minimum atomically
+                long long expected = global_min.load();
+                while (expected > local_min && 
+                       !global_min.compare_exchange_weak(expected, local_min));
+            });
+        }
+        
+        for (auto& t : threads) {
+            t.join();
+        }
+        
+        return global_min.load();
+    }
+};
+```
+
+並列化により、大規模な問題に対して顕著な高速化が期待できる。ただし、並列化のオーバーヘッドがあるため、問題サイズが小さい場合は逐次実装の方が高速な場合もある。
+
+## 実践的なデバッグとテスト戦略
+
+ハンガリアン法の実装は複雑であるため、適切なテスト戦略が不可欠である。以下に、効果的なテスト手法を示す。
+
+```cpp
+class HungarianTester {
+public:
+    // Verify optimality conditions
+    bool verifyOptimality(
+        const std::vector<std::vector<long long>>& cost,
+        const std::vector<int>& assignment,
+        const std::vector<long long>& u,
+        const std::vector<long long>& v
+    ) {
+        int n = cost.size();
+        
+        // Check dual feasibility
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                if (u[i] + v[j] > cost[i][j]) {
+                    std::cerr << "Dual infeasibility at (" << i << ", " << j << ")" << std::endl;
+                    return false;
+                }
+            }
+        }
+        
+        // Check complementary slackness
+        for (int i = 0; i < n; ++i) {
+            int j = assignment[i];
+            if (u[i] + v[j] != cost[i][j]) {
+                std::cerr << "Complementary slackness violation at (" << i << ", " << j << ")" << std::endl;
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    // Generate test cases
+    std::vector<std::vector<long long>> generateRandomInstance(int n, long long max_cost) {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<long long> dis(1, max_cost);
+        
+        std::vector<std::vector<long long>> cost(n, std::vector<long long>(n));
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                cost[i][j] = dis(gen);
+            }
+        }
+        
+        return cost;
+    }
+    
+    // Stress testing
+    void stressTest(int max_n = 100, int num_tests = 1000) {
+        for (int test = 0; test < num_tests; ++test) {
+            int n = 1 + rand() % max_n;
+            auto cost = generateRandomInstance(n, 1000000);
+            
+            HungarianAlgorithm<long long> solver(cost);
+            auto [min_cost, assignment] = solver.solve();
+            auto [u, v] = solver.getDualVariables();
+            
+            if (!verifyOptimality(cost, assignment, u, v)) {
+                std::cerr << "Test " << test << " failed!" << std::endl;
+                // Print debug information
+                break;
+            }
+        }
+    }
+};
+```
+
+このテストフレームワークにより、実装の正確性を体系的に検証できる。特に、最適性条件の検証は、アルゴリズムが正しく動作していることを保証する重要な手段である。
+
 ## まとめ
 
 ハンガリアン法は、割当問題を効率的に解くための洗練されたアルゴリズムである。その理論的基盤は線形計画法の双対理論にあり、プライマル・デュアル法の先駆的な例として組合せ最適化の発展に大きく貢献した。O(n³)の時間計算量で最適解を保証するこのアルゴリズムは、競技プログラミングにおいて欠かせないツールの一つとなっている。実装においては、数値的安定性、メモリ効率、そして問題の特性に応じた最適化が重要となる。本稿で述べた理論的背景と実装技法を理解することで、より複雑な最適化問題への応用も可能となるだろう。

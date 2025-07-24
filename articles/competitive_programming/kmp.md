@@ -274,6 +274,332 @@ Z-algorithm[^5]は、KMP法とは異なるアプローチで類似の問題を�
 
 KMP法は、その理論的な美しさと実用性から、計算機科学の教育においても重要な位置を占めている。アルゴリズムの正しさの証明、計算量解析、実装技法など、多くの重要な概念を学ぶことができる。また、動的計画法、オートマトン理論、文字列処理など、複数の分野の知識が統合された例として価値がある。
 
+## 詳細な実装技法
+
+実際のシステムでKMP法を実装する際には、性能と正確性の両方を考慮した様々な技法が必要となる。以下では、実用的な実装における重要な考慮事項を詳しく見ていく。
+
+### 強化版部分一致表
+
+標準的な部分一致表に加えて、より効率的な照合を可能にする「強化版部分一致表」（strong prefix function）を構築することができる。この表では、パターンの位置jで不一致が発生し、かつpattern[π[j]] = pattern[j]の場合、さらに短い接頭辞まで遡ることを事前に計算しておく。
+
+```python
+def compute_strong_prefix_function(pattern):
+    m = len(pattern)
+    pi = compute_prefix_function(pattern)
+    pi_star = [0] * m
+    
+    for j in range(m):
+        if pi[j] == 0:
+            pi_star[j] = 0
+        elif pattern[pi[j] - 1] == pattern[j]:
+            pi_star[j] = pi_star[pi[j] - 1]
+        else:
+            pi_star[j] = pi[j]
+    
+    return pi_star
+```
+
+この強化版を使用することで、無駄な比較をさらに削減できる。特に、パターンに繰り返し構造が多い場合に効果的である。
+
+### ストリーミング処理への対応
+
+KMP法は本質的にオンラインアルゴリズムであるため、ストリーミングデータの処理に適している。データが逐次的に到着する場合でも、内部状態を保持することで効率的に処理できる。
+
+```python
+class KMPStreamMatcher:
+    def __init__(self, pattern):
+        self.pattern = pattern
+        self.m = len(pattern)
+        self.pi = compute_prefix_function(pattern)
+        self.q = 0
+        self.position = 0
+    
+    def process_char(self, char):
+        while self.q > 0 and self.pattern[self.q] != char:
+            self.q = self.pi[self.q - 1]
+        
+        if self.pattern[self.q] == char:
+            self.q += 1
+        
+        self.position += 1
+        
+        if self.q == self.m:
+            match_pos = self.position - self.m
+            self.q = self.pi[self.q - 1]
+            return match_pos
+        
+        return None
+```
+
+この実装により、ネットワークパケットの監視やログファイルのリアルタイム解析などの用途に対応できる。
+
+### メモリアクセスパターンの最適化
+
+現代のプロセッサアーキテクチャでは、キャッシュ効率が性能に大きく影響する。KMP法の実装では、部分一致表へのランダムアクセスが発生するため、キャッシュミスが性能低下の原因となることがある。
+
+```python
+def kmp_search_cache_friendly(text, pattern):
+    n = len(text)
+    m = len(pattern)
+    
+    # Ensure pattern and pi table fit in L1 cache
+    if m > 8192:  # Typical L1 cache size threshold
+        # Fall back to standard implementation or use blocking
+        return kmp_search(text, pattern)
+    
+    pi = compute_prefix_function(pattern)
+    
+    # Process text in blocks to improve cache locality
+    block_size = 65536  # L2 cache size
+    matches = []
+    q = 0
+    
+    for block_start in range(0, n, block_size):
+        block_end = min(block_start + block_size, n)
+        
+        for i in range(block_start, block_end):
+            while q > 0 and pattern[q] != text[i]:
+                q = pi[q - 1]
+            
+            if pattern[q] == text[i]:
+                q += 1
+            
+            if q == m:
+                matches.append(i - m + 1)
+                q = pi[q - 1]
+    
+    return matches
+```
+
+## 競技プログラミングでの応用
+
+競技プログラミングにおいて、KMP法は文字列問題の強力な武器となる。以下にいくつかの典型的な応用例を示す。
+
+### 複数パターンの効率的な検索
+
+複数のパターンを同時に検索する必要がある場合、各パターンに対して個別にKMP法を適用するのではなく、パターンを連結して処理することで効率化できる。
+
+```python
+def multi_pattern_search(text, patterns):
+    # Create a combined pattern with separators
+    separator = '#'  # Character not in text or patterns
+    combined = separator.join(patterns)
+    combined_pi = compute_prefix_function(combined)
+    
+    results = {pattern: [] for pattern in patterns}
+    pattern_starts = []
+    pos = 0
+    
+    for pattern in patterns:
+        pattern_starts.append(pos)
+        pos += len(pattern) + 1
+    
+    # Search using modified KMP
+    n = len(text)
+    q = 0
+    
+    for i in range(n):
+        while q > 0 and (q >= len(combined) or combined[q] != text[i]):
+            q = combined_pi[q - 1]
+        
+        if q < len(combined) and combined[q] == text[i]:
+            q += 1
+            
+            # Check if we matched any pattern
+            for j, start in enumerate(pattern_starts):
+                pattern_len = len(patterns[j])
+                if q == start + pattern_len:
+                    results[patterns[j]].append(i - pattern_len + 1)
+    
+    return results
+```
+
+### 文字列の周期構造解析
+
+競技プログラミングでは、文字列の周期的性質を利用する問題が頻出する。KMP法の部分一致表は、これらの問題を解く鍵となる。
+
+```python
+def analyze_string_structure(s):
+    n = len(s)
+    pi = compute_prefix_function(s)
+    
+    # Find all borders
+    borders = []
+    k = pi[n - 1]
+    while k > 0:
+        borders.append(k)
+        k = pi[k - 1]
+    
+    # Find primitive period
+    min_period = n - pi[n - 1]
+    is_periodic = (n % min_period == 0)
+    
+    # Find all periods
+    periods = []
+    for i in range(1, n + 1):
+        if n % i == 0:
+            # Check if i is a period
+            is_period = True
+            for j in range(i, n):
+                if s[j] != s[j % i]:
+                    is_period = False
+                    break
+            if is_period:
+                periods.append(i)
+    
+    return {
+        'borders': borders,
+        'min_period': min_period,
+        'is_periodic': is_periodic,
+        'all_periods': periods
+    }
+```
+
+### 最長回文接頭辞の検出
+
+文字列処理問題では、回文に関する問題も多い。KMP法を応用することで、効率的に回文を検出できる。
+
+```python
+def longest_palindrome_prefix(s):
+    n = len(s)
+    # Create string s + '#' + reverse(s)
+    combined = s + '#' + s[::-1]
+    pi = compute_prefix_function(combined)
+    
+    # The longest palindrome prefix has length pi[2n]
+    # But we need to ensure it doesn't exceed n
+    return min(pi[2 * n], n)
+```
+
+## 実世界での性能特性
+
+理論的な計算量と実際の性能は必ずしも一致しない。以下に、様々な条件下でのKMP法の実測性能について詳しく見ていく。
+
+### 英文テキストでの性能
+
+自然言語テキストでは、文字の出現頻度に偏りがあるため、単純法でも早期に不一致を検出できることが多い。実測では、パターン長が10文字程度までは単純法がKMP法を上回ることがある。
+
+```python
+def benchmark_english_text():
+    import time
+    import random
+    import string
+    
+    # Generate realistic English-like text
+    words = ['the', 'quick', 'brown', 'fox', 'jumps', 'over', 'lazy', 'dog']
+    text = ' '.join(random.choice(words) for _ in range(1000000))
+    
+    patterns = ['quick brown fox', 'lazy dog', 'the quick']
+    
+    for pattern in patterns:
+        # KMP method
+        start = time.time()
+        kmp_matches = list(kmp_search(text, pattern))
+        kmp_time = time.time() - start
+        
+        # Naive method
+        start = time.time()
+        naive_matches = list(naive_search(text, pattern))
+        naive_time = time.time() - start
+        
+        print(f"Pattern: {pattern}")
+        print(f"KMP: {kmp_time:.4f}s, Naive: {naive_time:.4f}s")
+        print(f"Speedup: {naive_time/kmp_time:.2f}x")
+```
+
+### DNAシーケンスでの性能
+
+DNA配列は4文字（A, T, G, C）のアルファベットで構成されるため、単純法では不一致の検出が遅くなる。このような場合、KMP法の優位性が顕著に現れる。
+
+```python
+def benchmark_dna_sequence():
+    import random
+    
+    # Generate DNA sequence
+    dna_chars = ['A', 'T', 'G', 'C']
+    text = ''.join(random.choice(dna_chars) for _ in range(10000000))
+    
+    # Patterns with different characteristics
+    patterns = [
+        'ATGATGATG',  # Repetitive pattern
+        'ACGTACGTACGT',  # Longer repetitive pattern
+        'ATCGATCGATCG'  # Another pattern
+    ]
+    
+    for pattern in patterns:
+        # Count matches and measure time
+        matches = list(kmp_search(text, pattern))
+        print(f"Pattern {pattern}: {len(matches)} matches found")
+```
+
+### 悪意のある入力への耐性
+
+セキュリティが重要なシステムでは、DoS攻撃を防ぐために最悪計算時間が保証されるアルゴリズムが必要となる。KMP法は、入力に関わらずO(n+m)の計算時間を保証する。
+
+```python
+def test_worst_case_resistance():
+    # Pathological case for naive algorithm
+    n = 100000
+    m = 1000
+    
+    # Create worst-case input: "aaa...aab" pattern in "aaa...aaa" text
+    text = 'a' * n
+    pattern = 'a' * (m - 1) + 'b'
+    
+    import time
+    
+    # KMP maintains O(n+m) even in worst case
+    start = time.time()
+    kmp_matches = list(kmp_search(text, pattern))
+    kmp_time = time.time() - start
+    
+    print(f"KMP worst-case time: {kmp_time:.4f}s")
+    print(f"Operations: ~{n + m}")
+```
+
+## より高度な文字列アルゴリズムへの橋渡し
+
+KMP法の理解は、より高度な文字列処理アルゴリズムを学ぶための基礎となる。
+
+### Suffix ArrayとLCP配列
+
+KMP法の部分一致表の概念は、より強力なデータ構造であるSuffix ArrayやLCP（Longest Common Prefix）配列の理解につながる。これらのデータ構造は、複数の文字列処理問題を効率的に解くことができる。
+
+```python
+def build_suffix_array(s):
+    n = len(s)
+    # Simple O(n log n) implementation
+    suffixes = [(s[i:], i) for i in range(n)]
+    suffixes.sort()
+    return [i for _, i in suffixes]
+
+def build_lcp_array(s, sa):
+    n = len(s)
+    rank = [0] * n
+    for i in range(n):
+        rank[sa[i]] = i
+    
+    lcp = [0] * (n - 1)
+    h = 0
+    
+    for i in range(n):
+        if rank[i] > 0:
+            j = sa[rank[i] - 1]
+            while i + h < n and j + h < n and s[i + h] == s[j + h]:
+                h += 1
+            lcp[rank[i] - 1] = h
+            if h > 0:
+                h -= 1
+    
+    return lcp
+```
+
+### 一般化接尾辞木への発展
+
+KMP法の失敗関数の考え方は、接尾辞木（Suffix Tree）の構築アルゴリズムにも応用されている。Ukkonen's algorithmは、KMP法と同様に線形時間で接尾辞木を構築する。
+
+これらの高度なデータ構造により、文字列の任意の部分文字列の検索、最長共通部分文字列の発見、文字列の圧縮など、より複雑な問題を効率的に解くことができる。
+
 [^1]: Knuth, Donald; Morris, James H.; Pratt, Vaughan (1977). "Fast pattern matching in strings". SIAM Journal on Computing. 6 (2): 323–350.
 
 [^2]: Boyer, Robert S.; Moore, J Strother (1977). "A fast string searching algorithm". Communications of the ACM. 20 (10): 762–772.
